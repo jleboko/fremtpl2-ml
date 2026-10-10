@@ -55,3 +55,23 @@ pred_naif=np.full(len(test),f_train)
 real_f=test['ClaimNb']/test['Exposure']
 mean_poisson_deviance(real_f,pred_naif,sample_weight=test['Exposure'])
 mean_poisson_deviance(real_f,pred_glm,sample_weight=test['Exposure'])
+
+train['ageTranche']=pd.cut(train['DrivAge'],bins=[17,21,25,30,40,50,60,70,100])
+
+trainat=train.groupby("ageTranche",observed=True)[["ClaimNb","Exposure"]].sum()
+trainat['f']=trainat['ClaimNb']/trainat['Exposure']
+print(trainat['f'])
+
+test['ageTranche']=pd.cut(test['DrivAge'],bins=[17,21,25,30,40,50,60,70,100])
+X_test2=pd.get_dummies(test[['Area','VehGas','ageTranche']],drop_first=True,dtype=float)
+from sklearn.linear_model import PoissonRegressor
+gnl=PoissonRegressor(alpha=0)
+X_train2=pd.get_dummies(train[['Area','VehGas','ageTranche']],drop_first=True,dtype=float)
+
+pred_glm2=gnl.fit(X_train2,y_train,sample_weight=train['Exposure']).predict(X_test2)
+
+from sklearn.model_selection import mean_poisson_deviance
+mean_poisson_deviance(real_f,pred_glm2,sample_weight=test['Exposure'])
+
+mean_poisson_deviance(real_f,pred_naif,sample_weight=test['Exposure'])
+mean_poisson_deviance(real_f,pred_glm,sample_weight=test['Exposure'])
