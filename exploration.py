@@ -36,3 +36,22 @@ f_train=(train["ClaimNb"].sum()/train["Exposure"].sum())
 f_test=(test["ClaimNb"].sum()/test["Exposure"].sum())
 
 print(f_train,f_test)
+
+from sklearn.linear_model import PoissonRegressor
+X_train=pd.get_dummies(train[['Area','VehGas']],drop_first=True,dtype=float)
+y_train=train['ClaimNb']/train['Exposure']
+glm=PoissonRegressor(alpha=0)
+glm.fit(X_train,y_train,sample_weight=train['Exposure'])
+print(pd.Series(np.exp(glm.coef_),index=X_train.columns))
+print(np.exp(glm.intercept_))
+
+from sklearn.metrics import mean_poisson_deviance
+
+
+X_test=pd.get_dummies(test[['Area','VehGas']],drop_first=True,dtype=float)
+pred_glm=glm.predict(X_test)
+pred_naif=np.full(len(test),f_train)
+
+real_f=test['ClaimNb']/test['Exposure']
+mean_poisson_deviance(real_f,pred_naif,sample_weight=test['Exposure'])
+mean_poisson_deviance(real_f,pred_glm,sample_weight=test['Exposure'])
