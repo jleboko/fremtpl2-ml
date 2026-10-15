@@ -152,3 +152,44 @@ a=mean_poisson_deviance(y_valid,pred_gnlA,sample_weight=valid['Exposure'])
 b=mean_poisson_deviance(y_valid,pred_gnlB,sample_weight=valid['Exposure'])
 print(a)
 print(b)
+
+
+
+#gradient boosting
+
+from sklearn.ensemble import HistGradientBoostingRegressor
+colonnes = ["VehPower", "VehAge", "DrivAge", "BonusMalus", "Density",
+            "Area", "VehBrand", "VehGas", "Region"]
+bg=HistGradientBoostingRegressor(loss='poisson',random_state=42)
+X_sub_gb=train_sub[colonnes]
+X_valid_gb=valid[colonnes]
+train_sub2=train_sub
+train_sub2['VehGas']=pd.get_dummies(train_sub2['VehGas'],drop_first=True,dtype=float)
+valid2=valid
+valid2['VehGas']=pd.get_dummies(valid2['VehGas'],drop_first=True,dtype=float)
+X_sub_gb=train_sub2[colonnes]
+X_valid_gb=valid2[colonnes]
+print(X_sub_gb.dtypes)
+
+result_gb=bg.fit(X_sub_gb,sample_weight=train_sub2['Exposure'],y=y_sub).predict(X_valid_gb)
+mean_poisson_deviance(y_valid,result_gb,sample_weight=valid['Exposure'])
+
+result_gbs=bg.fit(X_sub_gb,y_sub,sample_weight=train_sub['Exposure']).predict(X_sub_gb)
+sgb=mean_poisson_deviance(y_sub,result_gbs,sample_weight=train_sub['Exposure'])
+
+result_gnls=gnl.fit(X_sub,y_sub,sample_weight=train_sub['Exposure']).predict(X_sub)
+sgnl=mean_poisson_deviance(y_sub,result_gnls,sample_weight=train_sub['Exposure'])
+
+print("deviance surapp gnl=",sgnl,"deviance surrapp gb=",sgb)
+
+h=[7,15,31,63]
+
+for i in h:
+    print("max leaf nodes =",i)
+    bg=HistGradientBoostingRegressor(loss='poisson',random_state=42,max_leaf_nodes=i)
+    sur=bg.fit(X_sub_gb,y_sub,sample_weight=train_sub['Exposure'])
+    surr1=sur.predict(X_valid_gb)
+    surr2=sur.predict(X_sub_gb)
+    sur2=mean_poisson_deviance(y_sub,surr2,sample_weight=train_sub['Exposure'])
+    sur1=mean_poisson_deviance(y_valid,surr1,sample_weight=valid['Exposure'])
+    print("deviance sur prediction=",sur1,"devaince surapp=",sur2)
