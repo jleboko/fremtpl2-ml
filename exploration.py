@@ -141,6 +141,7 @@ def preparer(data):
     X=pd.concat([X,age,VehAge,pd.get_dummies(data[['Area']],drop_first=True,dtype=float)],axis=1)
     X['BonusMalus']=data['BonusMalus']
     return X
+#on as enlevé VehGas car elle n'est pas significative
 
 gnlA=PoissonRegressor(alpha=0,max_iter=1000)
 pred_gnlA=gnlA.fit(X_sub,y_sub,sample_weight=train_sub['Exposure']).predict(X_valid)
