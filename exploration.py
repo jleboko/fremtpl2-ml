@@ -193,3 +193,71 @@ for i in h:
     sur2=mean_poisson_deviance(y_sub,surr2,sample_weight=train_sub['Exposure'])
     sur1=mean_poisson_deviance(y_valid,surr1,sample_weight=valid['Exposure'])
     print("deviance sur prediction=",sur1,"devaince surapp=",sur2)
+
+bg=HistGradientBoostingRegressor(loss='poisson',max_leaf_nodes=15,max_iter=1000,
+                                 early_stopping=True,n_iter_no_change=10,random_state=42)
+gradb=bg.fit(X_sub_gb,y_sub,sample_weight=train_sub['Exposure']).predict(X_sub_gb)
+gradb2=bg.fit(X_sub_gb,y_sub,sample_weight=train_sub['Exposure']).predict(X_valid_gb)
+print("deviance surraprentissage",mean_poisson_deviance(y_sub,gradb,sample_weight=train_sub['Exposure']))
+print('deviance prediction=',mean_poisson_deviance(y_valid,gradb2,sample_weight=valid['Exposure']))
+print(bg.fit(X_sub_gb,y_sub,sample_weight=train_sub['Exposure']).n_iter_)
+
+
+k=["VehPower","VehAge",'DrivAge',"BonusMalus","LogDensity"]
+l=['Area','VehBrand','Region','VehGas']
+
+def preparer3(X,ref):
+    X["LogDensity"]=np.log(X["Density"])
+    ref["LogDensity"]=np.log(ref["Density"])
+    partie1=pd.DataFrame({})
+    for K in k:
+        partie1[K]=(X[K]-ref[K].mean())/(ref[K].var()**(1/2))
+    partie2=pd.get_dummies(X[l],drop_first=True,dtype=float)
+    sortie=pd.concat([partie1,partie2],axis=1)
+    return(sortie)
+train_sub_norm=preparer3(train_sub,train_sub)
+valid_norm=preparer3(valid,train_sub)
+
+import torch
+
+X_train=torch.tensor(train_sub_norm.to_numpy(),dtype=torch.float32)
+X_valid=torch.tensor(valid_norm.to_numpy(),dtype=torch.float32)
+E_train=torch.tensor(train_sub["Exposure"].to_numpy(),dtype=torch.float32)
+E_valid=torch.tensor(valid['Exposure'].to_numpy(),dtype=torch.float32)
+Y_train=torch.tensor((train_sub['ClaimNb']/train_sub["Exposure"]).to_numpy(),dtype=torch.float32)
+Y_valid=torch.tensor((valid["ClaimNb"]/valid["Exposure"]).to_numpy(),dtype=torch.float32)
+X_train.shape
+
+import torch.nn as nn
+
+modele = nn.Sequential(
+    nn.Linear(42, 16),   # 42 variables -> 16 neurones cachés
+    nn.ReLU(),           # les coudes
+    nn.Linear(16, 1)     # 16 neurones -> 1 sortie : η = log λ
+)
+
+def perte(eta,y,E):
+    eta2=eta.squeeze(1)
+    debut=(nn.PoissonNLLLoss(log_input=True,reduction="none")(eta2,y)*E/E.sum()).sum()
+    return (debut)
+perte(modele(X_train), Y_train, E_train)
+
+torch.manual_seed(42)
+optimiseur = torch.optim.Adam(modele.parameters(), lr=0.05)
+
+for epoque in range(1000):
+    optimiseur.zero_grad()
+    l = perte(modele(X_train), Y_train, E_train)
+    if (epoque%100==0):
+            print(epoque,l,l.item())
+    l.backward()
+    optimiseur.step()
+
+
+from sklearn.metrics import mean_poisson_deviance
+
+with torch.no_grad():
+    lam_valid = torch.exp(modele(X_valid).squeeze(1)).numpy()
+
+mean_poisson_deviance(valid["ClaimNb"] / valid["Exposure"], lam_valid,
+                      sample_weight=valid["Exposure"])
