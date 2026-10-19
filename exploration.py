@@ -261,3 +261,60 @@ with torch.no_grad():
 
 mean_poisson_deviance(valid["ClaimNb"] / valid["Exposure"], lam_valid,
                       sample_weight=valid["Exposure"])
+
+def deviance(X,data,modele):
+    with torch.no_grad():
+        retour=torch.exp(modele(X).squeeze(1)).numpy()
+    return(mean_poisson_deviance(data["ClaimNb"]/data["Exposure"],retour,sample_weight=data["Exposure"]))
+
+deviance(X_valid,valid)
+
+torch.manual_seed(42)
+modele2=nn.Sequential(
+    nn.Linear(42,16),
+    nn.ReLU(),
+    nn.Linear(16,1)
+)
+
+
+optimiseur=torch.optim.Adam(modele2.parameters(),lr=0.05)
+hist_train=[]
+hist_valid=[]
+
+for epoque in range(2001):
+    optimiseur.zero_grad()
+    l=perte(modele2(X_train),Y_train,E_train)
+    if (epoque%50==0):
+        dev=deviance(X_valid,valid,modele2)
+        dev2=deviance(X_train,train_sub,modele2)
+        hist_train.append(dev2)
+        hist_valid.append(dev)
+        print(epoque,"valid=",dev,"train=",dev2)
+    l.backward()
+    optimiseur.step()
+
+def entrainer(nb_neurones,nb_epoque):
+    torch.manual_seed(42)
+    modele3=nn.Sequential(
+        nn.Linear(42,nb_neurones),
+        nn.ReLU(),
+        nn.Linear(nb_neurones,1)
+    )
+    optimiseur=torch.optim.Adam(modele3.parameters(),lr=0.05)
+    list_valid=[]
+    list_train=[]
+    for epoque in range(nb_epoque):
+        optimiseur.zero_grad()
+        l=perte(modele3(X_train),Y_train,E_train)
+        if epoque%100==0 :
+            dev=deviance(X_train,train_sub,modele3)
+            dev2=deviance(X_valid,valid,modele3)
+            list_valid.append(dev2)
+            list_train.append(dev)
+            print(epoque,"train=",dev,"valid=",dev2)
+        l.backward()
+        optimiseur.step()
+    return(modele3,list_train,list_valid)
+
+m8, ht8, hv8 = entrainer(8, 1300)
+m32, ht32, hv32 = entrainer(32, 1300)
