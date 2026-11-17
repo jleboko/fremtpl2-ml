@@ -318,3 +318,41 @@ def entrainer(nb_neurones,nb_epoque):
 
 m8, ht8, hv8 = entrainer(8, 1300)
 m32, ht32, hv32 = entrainer(32, 1300)
+
+
+
+
+
+
+
+
+y_v=np.zeros((len(valid),1))
+y_v=valid['ClaimNb']/valid['Exposure']
+
+e_v=np.zeros((len(valid),1))
+e_v=valid['Exposure']
+
+X_sub_glm=preparer(train_sub)
+X_valid_glm=preparer(valid)
+pg=PoissonRegressor(alpha=0,max_iter=1000)
+lam_glm=pg.fit(X_sub_glm,Y_train,sample_weight=train_sub['Exposure']).predict(X_valid_glm)
+print(mean_poisson_deviance(y_v,lam_glm,sample_weight=valid['Exposure']))
+
+
+lam_nn= torch.exp(m8(X_valid).squeeze(1)).detach().numpy()
+print(mean_poisson_deviance(y_v,lam_nn,sample_weight=valid['Exposure']))
+
+lam_gn=bg.fit(train_sub[colonnes],Y_train,sample_weight=train_sub['Exposure']).predict(valid[colonnes])
+mean_poisson_deviance(y_valid,lam_gn,sample_weight=valid['Exposure'])
+
+
+rng=np.random.default_rng(42)
+idx=rng.integers(0,len(lam_glm),size=len(lam_glm))
+
+comparaison=pd.DataFrame(np.zeros(len(lam_glm)))
+for i in range(len(idx)):
+    comparaison[i]=mean_poisson_deviance(np.array(y_v.iloc[idx]),np.array(lam_nn[idx]),sample_weight=np.array(valid['Exposure'].iloc[idx]))
+
+
+
+    
