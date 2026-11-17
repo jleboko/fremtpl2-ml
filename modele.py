@@ -238,3 +238,18 @@ print("GB - GLM", np.percentile(d_gb_glm, [2.5, 97.5]))
 for nom, lam in [("GLM", lam_glm_test), ("reseau", lam_nn_test), ("gradient boosting", lam_gb_test)]:
     print(nom)
     print(calibration2(lam, test))
+
+feats = ["VehPower", "VehAge", "DrivAge", "BonusMalus", "VehBrand",
+         "VehGas", "Area", "Density", "Region"]
+
+def cle(d):
+    return d[feats].astype(str).agg("|".join, axis=1)
+
+jumeau = cle(test).isin(set(cle(train_sub))).to_numpy()
+print("part du test avec un jumeau :", jumeau.mean())
+
+for nom_groupe, m in [("avec jumeau", jumeau), ("sans jumeau", ~jumeau)]:
+    d_naif = mean_poisson_deviance(y_t[m], lam_naif_test[m], sample_weight=e_t[m])
+    for nom, lam in [("GLM", lam_glm_test), ("reseau", lam_nn_test), ("gradient boosting", lam_gb_test)]:
+        d = mean_poisson_deviance(y_t[m], lam[m], sample_weight=e_t[m])
+        print(nom_groupe, nom, "part expliquee :", 1 - d / d_naif)
