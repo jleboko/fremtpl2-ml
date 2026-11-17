@@ -201,3 +201,40 @@ lam_nn_test = torch.exp(m8(X_test_nn).squeeze(1)).detach().numpy() * facteur_nn
 for nom, lam in [("naif", lam_naif_test), ("GLM", lam_glm_test),
                  ("reseau", lam_nn_test), ("gradient boosting", lam_gb_test)]:
     print(nom, mean_poisson_deviance(y_test, lam, sample_weight=e_test))
+
+
+
+def calibration2(lam,data):
+    calib=pd.DataFrame({})
+    calib['lam']=lam.copy()
+    calib['N']=data['ClaimNb'].to_numpy()
+    calib['E']=data['Exposure'].to_numpy()
+    calib['decile']=pd.qcut(calib['lam'],10,labels=False)
+    calib['pred']=calib['lam']*calib['E']
+    table=calib.groupby('decile')[['N','pred']].sum()
+    table['ratio']=table['N']/table['pred']
+    return(table)
+
+
+y_t = y_test.to_numpy()
+e_t = e_test.to_numpy()
+n_t = len(y_t)
+rng = np.random.default_rng(42)
+d_glm_nn, d_gb_nn, d_gb_glm = [], [], []
+
+for b in range(1000):
+    idx = rng.integers(0, n_t, size=n_t)
+    dg = mean_poisson_deviance(y_t[idx], lam_glm_test[idx], sample_weight=e_t[idx])
+    dn = mean_poisson_deviance(y_t[idx], lam_nn_test[idx], sample_weight=e_t[idx])
+    db = mean_poisson_deviance(y_t[idx], lam_gb_test[idx], sample_weight=e_t[idx])
+    d_glm_nn.append(dg - dn)
+    d_gb_nn.append(db - dn)
+    d_gb_glm.append(db - dg)
+
+print("GLM - reseau", np.percentile(d_glm_nn, [2.5, 97.5]))
+print("GB - reseau", np.percentile(d_gb_nn, [2.5, 97.5]))
+print("GB - GLM", np.percentile(d_gb_glm, [2.5, 97.5]))
+
+for nom, lam in [("GLM", lam_glm_test), ("reseau", lam_nn_test), ("gradient boosting", lam_gb_test)]:
+    print(nom)
+    print(calibration2(lam, test))
